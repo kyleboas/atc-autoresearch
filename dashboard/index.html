@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>atc-at-home</title>
+<style>
+  /* Libero UI kit, dark theme (libero/webapp/style.css + flat-ui.css), the same tokens as the replay viewer */
+  :root { color-scheme:dark;
+          --bg:#1c1c1e; --line:#38383a; --rule:#636366; --fg:#f2f2f7; --fg2:#c7c7cc; --dim:#98989f; --acc:#d1d1d6;
+          --card:#2c2c2e; --bd:#48484a; --soft:#3a3a3c; --alt:#232325; --accbg:#48484a; --hov:#5a5a5e; --link:#7aa2ff;
+          --good:#3fb950; --bad:#ff6961; --badbg:#4a2020; --warn:#e0b341; --line-c:#64d2ff;
+          --sans:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+          --mono:ui-monospace, Menlo, monospace; }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.4 var(--sans); -webkit-font-smoothing:antialiased; }
+  a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
+  .dim { color:var(--dim); } .good { color:var(--good); } .bad { color:var(--bad); } .warn { color:var(--warn); }
+  .num { font-variant-numeric:tabular-nums; }
+
+  header { position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; padding:10px 18px;
+           background:var(--bg); border-bottom:1px solid var(--line); color:var(--fg2); }
+  header h1 { margin:0; font-size:15px; font-weight:700; color:var(--fg); }
+  header .sp { flex:1; }
+  .btn { display:inline-block; background:var(--card); color:var(--fg); border:1px solid var(--bd); border-radius:4px; padding:5px 10px; font-size:13px; }
+  .btn:hover { background:var(--hov); color:#fff; text-decoration:none; }
+
+  main { max-width:1180px; margin:0 auto; padding:16px 18px 48px; display:grid; grid-template-columns:minmax(0,1fr); gap:16px; }
+  section { min-width:0; }
+  section { background:var(--bg); border:1px solid var(--line); border-radius:4px; }
+  section > h2 { margin:0; padding:10px 14px; font-size:13px; font-weight:600; color:var(--acc); border-bottom:1px solid var(--line);
+                 display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  section > h2 .dim { font-weight:400; font-size:12px; }
+  .pad { padding:12px 14px; }
+
+  #now { border-color:var(--bd); background:var(--card); padding:10px 14px; display:flex; gap:10px; align-items:baseline; }
+  #now b { white-space:nowrap; }
+
+  .tiles { display:grid; grid-template-columns:repeat(4, 1fr); gap:0; }
+  .tile { padding:12px 14px; border-right:1px solid var(--line); min-width:0; }
+  .tile:last-child { border-right:0; }
+  .tile .k { font-size:12px; color:var(--dim); }
+  .tile .v { font-size:22px; font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .tile .v small { font-size:13px; font-weight:400; color:var(--dim); }
+  .tile .s { font-size:12px; color:var(--dim); margin-top:2px; }
+  .pos { display:flex; flex-wrap:wrap; gap:6px; padding:10px 14px; border-top:1px solid var(--line); align-items:center; }
+  .chip { font-size:12px; padding:2px 8px; border-radius:4px; background:var(--soft); font-variant-numeric:tabular-nums; }
+  .chip.badc { background:var(--badbg); color:var(--bad); }
+
+  .chart { display:block; width:100%; height:auto; }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 16px; padding:0 14px 12px; font-size:12px; color:var(--dim); }
+  .legend span::before { content:""; display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; vertical-align:0; }
+  .legend .lb::before { border:2px solid var(--line-c); width:6px; height:6px; }
+  .legend .lk::before { background:var(--good); }
+  .legend .ln::before { border:1.5px solid var(--dim); width:6px; height:6px; }
+  .legend .ll::before { height:2px; border-radius:0; width:12px; background:var(--line-c); vertical-align:3px; }
+  .batches { border-top:1px solid var(--line); }
+  .batches div { padding:7px 14px; border-top:1px solid var(--soft); font-size:12px; color:var(--dim); }
+  .batches div:first-child { border-top:0; }
+  .batches b { color:var(--fg2); font-weight:600; }
+  .batches div[data-b] { cursor:pointer; }
+  .batches div[data-b]:hover { background:var(--alt); }
+  .batches div.sel { background:var(--soft); box-shadow:inset 3px 0 0 var(--line-c); }
+  .batches div.sel b { color:var(--fg); }
+
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { text-align:left; font-weight:500; color:var(--dim); padding:6px 8px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); white-space:nowrap; }
+  td { padding:6px 8px; border-top:1px solid var(--soft); vertical-align:top; }
+  th.r, td.r { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr.batch td { background:var(--alt); color:var(--fg2); font-weight:600; border-top:1px solid var(--line); }
+  tr.batch td .dim { font-weight:400; }
+  tr.run td { color:var(--warn); }
+  tbody tr:not(.batch):hover td { background:var(--alt); }
+  td.idea { color:var(--fg2); min-width:240px; }
+  .st { font-size:11px; padding:1px 6px; border-radius:4px; background:var(--soft); color:var(--dim); white-space:nowrap; }
+  .st.kept { background:#1f3a26; color:var(--good); } .st.base { background:#1d3540; color:var(--line-c); } .st.error { background:var(--badbg); color:var(--bad); }
+  #histbox { max-height:70vh; overflow:auto; }
+  .two > section { min-width:0; }
+
+  .feed > div { padding:7px 14px; border-top:1px solid var(--soft); display:flex; gap:10px; align-items:baseline; font-size:12px; }
+  .feed > div:first-child { border-top:0; }
+  .feed .idea { flex:1; min-width:0; color:var(--fg2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .feed .who { color:var(--dim); white-space:nowrap; }
+  .sub { padding:8px 14px 4px; font-size:12px; color:var(--dim); border-top:1px solid var(--line); }
+
+  pre { margin:0; padding:10px 14px; font:12px/1.5 var(--mono); color:var(--fg2); white-space:pre-wrap; word-break:break-word; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  dl { margin:0; padding:6px 14px 10px; display:grid; grid-template-columns:max-content 1fr; gap:6px 14px; font-size:12px; color:var(--dim); }
+  dt { color:var(--fg); font-weight:600; }
+  dd { margin:0; }
+
+  @media (max-width: 760px) {
+    header { padding:8px 12px; gap:6px 10px; }
+    main { padding:12px 10px 40px; gap:12px; }
+    .tiles { grid-template-columns:1fr 1fr; }
+    .tile:nth-child(2) { border-right:0; }
+    .tile:nth-child(-n+2) { border-bottom:1px solid var(--line); }
+    .tile .v { font-size:19px; }
+    .two { grid-template-columns:1fr; }
+    .hide-s { display:none; }
+    td.idea { min-width:0; }
+    #histbox { max-height:none; }
+    /* a phone stacks each trial: the numbers on one line, the change below */
+    #histbox table, #histbox tbody { display:block; }
+    #histbox thead { display:none; }
+    #histbox tr { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; padding:8px 14px; border-top:1px solid var(--soft); }
+    #histbox tr.batch { background:var(--alt); border-top:1px solid var(--line); }
+    #histbox td { padding:0; border:0; background:none !important; }
+    #histbox td[data-l]::before { content:attr(data-l) " "; color:var(--dim); }
+    #histbox td.idea { flex-basis:100%; }
+    .feed > div { flex-wrap:wrap; gap:2px 10px; }
+    .feed .idea { white-space:normal; flex-basis:100%; order:5; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>atc-at-home</h1>
+  <span class="sp"></span>
+  <a class="btn" href="/sim">Sim replays</a>
+  <a class="btn" href="/ksfo">KSFO procedures map</a>
+</header>
+<main id="main"><div class="dim">loading…</div></main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const val = v => v == null ? '–' : v;
+const ago = sec => { sec = Math.max(0, Math.round(sec)); return sec < 90 ? `${sec} s` : sec < 5400 ? `${Math.round(sec / 60)} min` : `${Math.round(sec / 3600)} h`; };
+let S = null, selBatch = null;  // name of the batch shown in the chart; null = current
+
+function chart(points) {
+  const vals = points.map(p => p[0]).filter(v => v != null);
+  if (!vals.length) return '<div class="pad dim">No scored trials yet.</div>';
+  const W = Math.max(300, ($('main').clientWidth || 1000) - 40), H = W < 600 ? 200 : 260, padL = 52, padR = 12, padT = 14, padB = 26;
+  // scale to the kept line; trials far above it are drawn as ↑ at the top edge
+  const ref = points.filter(p => (p[1] === 'start' || p[1] === 'yes') && p[0] != null).map(p => p[0]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (ref.length) hi = Math.min(hi, Math.max(...ref) * 1.5);
+  if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.06; lo -= pad; hi += pad;
+  const n = points.length;
+  const X = i => padL + (W - padL - padR) * (n > 1 ? i / (n - 1) : 0.5);
+  const Y = v => padT + (H - padT - padB) * (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo);
+  let g = '';
+  for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+    const v = hi - (hi - lo) * f, y = Y(v);
+    g += `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="#2c2c2e"/>` +
+         `<text x="${padL - 8}" y="${y + 4}" fill="#98989f" font-size="11" text-anchor="end">${v.toFixed(0)}</text>`;
+  }
+  let best = null, path = '';
+  points.forEach(([v, verdict], i) => {
+    if (verdict === 'start' && v != null) { best = v; path += `M${X(i)},${Y(v)}`; }
+    else if (verdict === 'yes' && v != null && best != null) { path += `L${X(i)},${Y(best)}L${X(i)},${Y(v)}`; best = v; }
+    else if (best != null) path += `L${X(i)},${Y(best)}`;
+  });
+  g += `<path d="${path}" fill="none" stroke="#64d2ff" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  points.forEach(([v, verdict, , idea], i) => {
+    const x = X(i), tip = `<title>#${i} · ${v == null ? 'error' : 'score ' + v} · ${esc(idea)}</title>`;
+    if (v == null) { g += `<text x="${x}" y="${H - padB - 4}" fill="#ff6961" font-size="13" text-anchor="middle">×${tip}</text>`; return; }
+    if (v > hi) { g += `<text x="${x}" y="${padT + 10}" fill="#98989f" font-size="13" text-anchor="middle">↑${tip}</text>`; return; }
+    const y = Y(v);
+    if (verdict === 'yes') g += `<circle cx="${x}" cy="${y}" r="4.5" fill="#3fb950">${tip}</circle>`;
+    else if (verdict === 'start') g += `<circle cx="${x}" cy="${y}" r="5" fill="#1c1c1e" stroke="#64d2ff" stroke-width="2">${tip}</circle>`;
+    else g += `<circle cx="${x}" cy="${y}" r="3.5" fill="#1c1c1e" stroke="#98989f" stroke-width="1.5">${tip}</circle>`;
+  });
+  for (let i = 0; i < n; i += Math.max(1, Math.ceil(n / 10)))
+    g += `<text x="${X(i)}" y="${H - 6}" fill="#98989f" font-size="11" text-anchor="middle">${i}</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" >${g}</svg>`;
+}
+
+function tile(k, from, to, sub, goodWhenLower = true) {
+  const better = from != null && to != null && (goodWhenLower ? to < from : to > from);
+  return `<div class="tile"><div class="k">${k}</div><div class="v">${val(to)}${from != null && from !== to ? ` <small>from ${from}</small>` : ''}</div>` +
+         `<div class="s ${better ? 'good' : ''}">${sub}</div></div>`;
+}
+
+function render() {
+  if (!S) return;
+  const st = S.status || {}, rows = S.rows, base = rows.find(r => r.status === 'baseline');
+  const kept = rows.filter(r => r.status === 'kept'), bestRow = [base, ...kept].filter(Boolean).pop();
+  const busy = S.alive && ['running', 'evaluating'].includes(st.state);
+
+  const batches = [...(S.past || []), { name: S.current_batch, note: 'current', rows, holdout: null, current: true }];
+  const all = [];
+  batches.forEach((bt, bi) => bt.rows.forEach(r => all.push({ ...r, batch: bt.name, bi, cur: !!bt.current,
+    held: (bt.holdout || S.holdout)[r.commit], g: all.length })));
+  const hb = base && S.holdout[base.commit], hk = bestRow && S.holdout[bestRow.commit];
+  const out = [];
+
+  // about, with the repo and how to contribute side by side
+  const repo = (S.community && S.community.repo) || 'kyleboas/atc-at-home';
+  out.push(`<section><h2>About <span class="dim"><a href="https://github.com/${esc(repo)}">GitHub repo</a> · ` +
+    `<a href="https://github.com/${esc(repo)}/blob/main/CONTRIBUTING.md">contributing</a> · ` +
+    `<a href="https://github.com/${esc(repo)}#join-with-one-command">join with one command</a></span></h2>` +
+    `<div class="pad">An open experiment to build an AI air traffic controller for San Francisco (KSFO) that follows FAA Order JO 7110.65 ` +
+    `and flies real FAA procedures. Anyone can run experiments on their own machine, by hand or with an AI agent; when someone's controller ` +
+    `beats the current best on the shared scoring, it becomes the starting point for everyone else. ` +
+    `<span class="dim">Not affiliated with the FAA. Not for real-world navigation.</span></div></section>`);
+
+  if (busy) out.push(`<div id="now"><b class="warn">${st.state === 'evaluating' ? 'Scoring' : 'Trying'} experiment ${esc(st.experiment)}</b>` +
+                     `<span class="dim">${ago(S.now - (st.started || S.now))}</span><span>${esc(st.idea)}</span></div>`);
+
+  // headline numbers for the current batch
+  let pos = '';
+  if (bestRow && bestRow.violations_by_position) {
+    const v = bestRow.violations_by_position;
+    pos = `<div class="pos"><span class="dim">Current best, violations by position (hard / rule)</span>` +
+      ['GND', 'TWR', 'APP', 'DEP'].map(p => `<span class="chip ${(v[p + ':hard'] || 0) ? 'badc' : ''}">${p} ${v[p + ':hard'] || 0} / ${v[p + ':rule'] || 0}</span>`).join('') + '</div>';
+  }
+  const heldSub = hb && hk && bestRow !== base
+    ? (hk.cost < hb.cost && hk.hard <= hb.hard ? 'holds up on unseen scenarios' : '<span class="bad">does not hold up on unseen scenarios</span>')
+    : hk ? '30 unseen scenarios' : 'scoring on 30 unseen scenarios…';
+  out.push(`<section><h2>${esc(S.current_batch)} <span class="dim">lower is better</span></h2><div class="tiles">` +
+    tile('Score', base?.cost, bestRow?.cost, 'lower is better') +
+    tile('Hard violations', base?.hard, bestRow?.hard, 'safety failures, 100 each') +
+    tile('Held out', hb?.cost, hk?.cost, heldSub) +
+    `<div class="tile"><div class="k">Ideas kept</div><div class="v">${kept.length} <small>of ${Math.max(0, rows.length - 1)}</small></div><div class="s">tried in this batch</div></div>` +
+    `</div>${pos}</section>`);
+
+  // chart of one batch at a time (the current one unless another is picked below): each batch has its own rules, so scores are not comparable across batches
+  let si = batches.findIndex(bt => bt.name === selBatch);
+  if (si < 0) { si = batches.length - 1; selBatch = null; }
+  const shown = batches[si];
+  const cur = all.filter(r => r.bi === si);
+  const points = cur.map(r => [r.cost == null ? null : r.cost, r.status === 'baseline' ? 'start' : r.status === 'kept' ? 'yes' : r.status === 'error' ? 'error' : 'no', r.g, r.idea]);
+  const past = batches.map((bt, bi) => {
+    const b = bt.rows.find(r => r.status === 'baseline'), kk = bt.rows.filter(r => r.status === 'kept'), best = [b, ...kk].filter(Boolean).pop();
+    const h0 = b && (bt.holdout || S.holdout)[b.commit], h1 = best && (bt.holdout || S.holdout)[best.commit];
+    return `<div data-b="${bi}" class="${bi === si ? 'sel' : ''}"><b>${esc(bt.name)}</b> · ${bt.rows.length - 1} trials, ${kk.length} kept · score ${val(b?.cost)} → ${val(best?.cost)} · hard ${val(b?.hard)} → ${val(best?.hard)}` +
+      (h0 && h1 ? ` · held out ${h0.cost} → ${h1.cost}` : '') + (bt.note ? ` · ${esc(bt.note)}` : '') + (bi === si ? ' · <span style="color:var(--line-c)">shown above</span>' : '') + '</div>';
+  }).join('');
+  out.push(`<section><h2>Score of every trial <span class="dim">${esc(shown.name)}${shown.current ? '' : ' (earlier batch)'} · ${cur.length} trial${cur.length === 1 ? '' : 's'}` +
+    `${batches.length > 1 ? ` · tap a batch below to chart it (different rules, scores not comparable)` : ''}</span></h2>` +
+    chart(points) +
+    `<div class="legend"><span class="lb">baseline</span><span class="lk">kept</span><span class="ln">not kept</span><span class="ll">best so far</span><span>↑ off the chart</span></div>` +
+    (batches.length > 1 ? `<div class="batches" id="batches">${past}</div>` : '') + '</section>');
+
+  // contributors
+  const cm = S.community || {};
+  if (cm.best) {
+    const link = n => `<a href="https://github.com/${esc(cm.repo)}/issues/${Number(n)}">#${Number(n)}</a>`;
+    const kind = k => `<span class="st ${k === 'kept' ? 'kept' : k === 'crash' ? 'error' : ''}">${esc(k)}</span>`;
+    out.push(`<section><h2>Contributors <span class="dim">anyone can join: <a href="https://github.com/${esc(cm.repo)}#join-with-one-command">how to help</a></span></h2>` +
+      `<div class="pad">Shared best: <b class="good num">score ${cm.best.cost}</b>, hard ${cm.best.hard}, by ${esc(cm.best.author || '?')}` +
+      (cm.people.length ? `<div class="dim" style="margin-top:4px">${cm.people.map(p => `${esc(p.who)} ${p.kept}/${p.runs} kept${p.best != null ? ', best ' + p.best : ''}`).join(' · ')}</div>` : '') + '</div>' +
+      (cm.claims.length ? `<div class="sub">Trying now (${cm.claims.length})</div><div class="feed">${cm.claims.slice(0, 8).map(c => `<div><span class="who">${esc(c.who)} · ${ago(S.now - c.t)}</span><span class="idea">${esc(c.idea)}</span>${link(c.n)}</div>`).join('')}</div>` : '') +
+      (cm.results.length ? `<div class="sub">Recent results</div><div class="feed">${cm.results.slice(0, 8).map(r =>
+        `<div>${kind(r.kind)}<span class="num">${val(r.cost)}</span><span class="idea">${esc(r.idea)}</span><span class="who">${esc(r.who)}</span>${link(r.n)}</div>`).join('')}</div>` : '') +
+      '</section>');
+  }
+
+  // history, newest first
+  const tr = [];
+  if (busy) tr.push(`<tr class="run"><td class="r">${all.length}</td><td class="r hide-s">${esc(st.experiment)}</td><td class="hide-s">…</td><td class="r">…</td><td class="r">…</td>` +
+                    `<td class="r hide-s"></td><td class="r hide-s"></td><td class="r"></td><td><span class="st">running</span></td><td class="idea">${esc(st.idea)}</td></tr>`);
+  let lastBatch = null;
+  for (const r of [...all].reverse()) {
+    if (r.batch !== lastBatch) {
+      const bt = batches[r.bi];
+      tr.push(`<tr class="batch"><td colspan="10">${esc(bt.name)}${bt.note && bt.note !== 'current' ? ` <span class="dim">· ${esc(bt.note)}</span>` : ''}</td></tr>`);
+      lastBatch = r.batch;
+    }
+    const cls = r.status === 'kept' ? 'kept' : r.status === 'baseline' ? 'base' : r.status === 'error' ? 'error' : '';
+    const label = r.status === 'kept' ? 'kept' : r.status === 'baseline' ? 'baseline' : r.status === 'reverted' ? 'not kept' : r.status;
+    const replay = r.cur && r.status !== 'reverted' && r.status !== 'error' ? ` <a href="/sim?commit=${encodeURIComponent(r.commit)}">replay</a>` : '';
+    const held = r.held ? r.held.cost : (r.status === 'reverted' || !r.cur ? '' : '…');
+    tr.push(`<tr><td class="r dim">${r.g}</td><td class="r hide-s dim">${r.n}</td><td class="hide-s dim" style="font-family:var(--mono)">${esc(r.commit)}</td>` +
+            `<td class="r" data-l="score">${val(r.cost)}</td><td class="r ${r.hard ? 'bad' : ''}" data-l="hard">${val(r.hard)}</td><td class="r hide-s">${val(r.rule)}</td>` +
+            `<td class="r hide-s">${val(r.go_arounds)}</td><td class="r"${held !== '' ? ' data-l="held"' : ''}>${held}</td><td><span class="st ${cls}">${label}</span></td>` +
+            `<td class="idea">${esc(r.idea)}${replay}</td></tr>`);
+  }
+  out.push(`<section><h2>History <span class="dim">newest first</span></h2><div id="histbox"><table><thead><tr>` +
+    `<th class="r">#</th><th class="r hide-s">n</th><th class="hide-s">commit</th><th class="r">score</th><th class="r">hard</th><th class="r hide-s">rule</th>` +
+    `<th class="r hide-s">G/A</th><th class="r">held</th><th></th><th>change</th></tr></thead><tbody>${tr.join('')}</tbody></table></div></section>`);
+
+  out.push(`<div class="two"><section><h2>Agent notes</h2><pre>${S.notes.length ? esc(S.notes.slice(-10).join('\n')) : '<span class="dim">The agent writes a line per experiment to notes.md.</span>'}</pre></section>` +
+    `<section><h2>Driver</h2><pre>${S.driver.length ? S.driver.slice(-4).map(l => /error/i.test(l) ? `<span class="warn">${esc(l)}</span>` : esc(l)).join('\n') : '<span class="dim">No driver output yet.</span>'}</pre></section></div>`);
+
+  out.push(`<section><h2>What the numbers mean</h2><dl>${[
+    ['Score', 'Lower is better. It adds up everything that went wrong at KSFO, per 40 simulated minutes and averaged over the training sessions, with safety problems counting most. The agent only keeps a change if this goes down.'],
+    ['Hard', 'Safety failures, like two planes on one runway, two planes getting too close, or a plane running low on fuel. Each adds 100 to the score.'],
+    ['Rule', 'Times the controller broke the FAA air traffic control rules (Order JO 7110.65), like two planes meeting on a taxiway. Each adds 10.'],
+    ['G/A', 'Go-arounds: a plane had to abort its landing and try again.'],
+    ['Held', 'The same test on 30 sessions the agent never practises on. If this improves too, the change really helps.'],
+    ['GND TWR APP DEP', 'Which controller made the mistake: Ground, Tower, Approach or Departure.'],
+  ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></section>`);
+
+  const box = $('histbox'), keep = box ? box.scrollTop : 0;
+  $('main').innerHTML = out.join('');
+  if ($('histbox')) $('histbox').scrollTop = keep;
+  if ($('batches')) $('batches').onclick = e => {
+    const d = e.target.closest('[data-b]'); if (!d) return;
+    const bt = batches[+d.dataset.b];
+    selBatch = bt.current ? null : bt.name; render();
+  };
+}
+
+async function poll() {
+  try { S = await (await fetch('/api/state', { cache: 'no-store' })).json(); render(); }
+  catch (e) { $('main').innerHTML = `<div class="dim">Dashboard server not reachable: ${esc(e)}</div>`; }
+}
+window.addEventListener('resize', render);
+poll(); setInterval(poll, 2000);
+</script>
+</body>
+</html>
